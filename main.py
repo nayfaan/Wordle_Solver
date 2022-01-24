@@ -30,9 +30,8 @@ def to_uppercase(var, index):
             pass
     
 def force_upper(entry_var):
-    for row in entry_var:
-        for ind, alpha in enumerate(row):
-            alpha.trace("w", lambda name, index, mode, ind=ind, alpha=alpha: to_uppercase(alpha, ind))
+    for ind, alpha in enumerate(entry_var[-1]):
+        alpha.trace("w", lambda name, index, mode, ind=ind, alpha=alpha: to_uppercase(alpha, ind))
             
             
 def cycle_color(i):
@@ -53,6 +52,7 @@ def disable_last_row():
                 entry_box[-1][i]["disabledbackground"] = box_color
             else:
                 entry_box[-1][i]["disabledbackground"] = "grey"
+            entry_box[-1][i]["disabledforeground"] = "black"
     except:
         pass
 
@@ -75,7 +75,8 @@ def new_row(submit_btn, frame_l):
                          font=("Imperial", int(0.7*box_size)),
                          justify='center',
                          textvariable = entry_var[len(entry_var)-1][i],
-                         background = white)
+                         background = white,
+                         foreground = "black")
         
         entry_box[-1].append(entry)
         
@@ -95,15 +96,23 @@ def new_row(submit_btn, frame_l):
         cycle_frame.grid(row = 1, column = i)
     frame_1.pack()
     
+    force_upper(entry_var)
+    
     submit_btn.pack_forget()
     submit_btn.pack()
     
+def wordl_logic():
+    print(entry_var[-1]) 
+    
 def submit_btn_press(submit_btn, frame_l):
+    
     if len(entry_box) < 6:
         new_row(submit_btn, frame_l)
     else:
         disable_last_row()
         submit_btn.destroy()
+        
+    wordl_logic()
 
 def init():
     global entry_var
@@ -130,7 +139,6 @@ def run():
     root = tk.Tk()
     
     init()
-    force_upper(entry_var)
     
     tk.mainloop()
 
