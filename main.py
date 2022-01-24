@@ -101,18 +101,46 @@ def new_row(submit_btn, frame_l):
     submit_btn.pack_forget()
     submit_btn.pack()
     
-def wordl_logic():
-    print(entry_var[-1]) 
+def wordl_logic(last_sol, last_input, last_color):
+    sol_return = []
+    for word in last_sol:
+        match = True
+        for index, alpha in enumerate(last_input):
+            if last_color[index] == white:
+                if alpha in word.upper():
+                    match = False
+            elif last_color[index] == yellow:
+                if alpha not in word.upper():
+                    match = False
+                if word.upper()[index] == alpha:
+                    match = False
+            elif last_color[index] == green:
+                if word.upper()[index] != alpha:
+                    match = False
+        
+        if match:
+            sol_return.append(word)
+
+    return sol_return
     
 def submit_btn_press(submit_btn, frame_l):
-    
-    if len(entry_box) < 6:
-        new_row(submit_btn, frame_l)
-    else:
-        disable_last_row()
-        submit_btn.destroy()
+    last_input = [alpha.get() for alpha in entry_var[-1]]
+    if len(list(filter(None, last_input))) == 5:
+        last_color = [color["background"] for color in entry_box[-1]]
+        if len(entry_box) < 6:
+            new_row(submit_btn, frame_l)
+        else:
+            disable_last_row()
+            submit_btn.destroy()
         
-    wordl_logic()
+        global sol_remain
+        sol_remain = wordl_logic(sol_remain, last_input, last_color)
+        
+        
+        #display result to text box
+        output_word_list_label.delete("1.0", tk.END)
+        output_word_list = "Possible words:\n\n" + ", ".join(sol_remain)
+        output_word_list_label.insert("1.0", output_word_list)
 
 def init():
     global entry_var
@@ -125,9 +153,14 @@ def init():
     main_frame = (frame_l, frame_r) = output_area()
     
     submit_btn = tk.Button(master = frame_l, text="send", highlightbackground='#3E4149')
-    submit_btn.bind("<Button-1>", lambda event, submit_btn=submit_btn, frame_l=frame_l: submit_btn_press(submit_btn, frame_l))
+    submit_btn.bind("<Button-1>",
+                    lambda event,
+                    submit_btn=submit_btn,
+                    frame_l=frame_l:
+                    submit_btn_press(submit_btn, frame_l))
     
-    output_word_list = "Possible words:\n\n" + ", ".join(sol)
+    global output_word_list_label
+    output_word_list = "Possible words:\n\n" + ", ".join(sol_remain)
     output_word_list_label = tk.Text(master = frame_r, width = 5*box_size)#, state = "disabled")
     output_word_list_label.insert("1.0", output_word_list)
     output_word_list_label.pack()
@@ -145,6 +178,9 @@ def run():
 if __name__ == "__main__":
     with open("./input/possible_solutions.txt", "rt") as f:
         sol = f.read().splitlines()
+        
+    global sol_remain
+    sol_remain = sol
         
     global box_size
     box_size = 60
