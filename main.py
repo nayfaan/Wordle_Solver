@@ -56,7 +56,7 @@ def disable_last_row():
     except:
         pass
 
-def new_row(submit_btn, frame_l):
+def new_row(buttons, frame_l):
     disable_last_row()
     
     entry_var.append([])
@@ -98,8 +98,11 @@ def new_row(submit_btn, frame_l):
     
     force_upper(entry_var)
     
+    (submit_btn,reset_btn) = buttons
     submit_btn.pack_forget()
     submit_btn.pack()
+    reset_btn.pack_forget()
+    reset_btn.pack()
     
 def wordl_logic(last_sol, last_input, last_color):
     sol_return = []
@@ -123,12 +126,12 @@ def wordl_logic(last_sol, last_input, last_color):
 
     return sol_return
     
-def submit_btn_press(submit_btn, frame_l):
+def submit_btn_press(submit_btn, reset_btn, frame_l):
     last_input = [alpha.get() for alpha in entry_var[-1]]
     if len(list(filter(None, last_input))) == 5:
         last_color = [color["background"] for color in entry_box[-1]]
         if len(entry_box) < 6:
-            new_row(submit_btn, frame_l)
+            new_row((submit_btn, reset_btn), frame_l)
         else:
             disable_last_row()
             submit_btn.destroy()
@@ -141,6 +144,16 @@ def submit_btn_press(submit_btn, frame_l):
         output_word_list_label.delete("1.0", tk.END)
         output_word_list = "Possible words:\n\n" + ", ".join(sol_remain)
         output_word_list_label.insert("1.0", output_word_list)
+        
+def reset_btn_press(reset_btn, frame_l):
+    global sol_remain
+    sol_remain = sol
+    
+    global root
+    root.destroy()
+    root = tk.Tk()
+    
+    init()
 
 def init():
     global entry_var
@@ -157,7 +170,14 @@ def init():
                     lambda event,
                     submit_btn=submit_btn,
                     frame_l=frame_l:
-                    submit_btn_press(submit_btn, frame_l))
+                    submit_btn_press(submit_btn, reset_btn, frame_l))
+        
+    reset_btn = tk.Button(master = frame_l, text="reset", highlightbackground='#3E4149')
+    reset_btn.bind("<Button-1>",
+                    lambda event,
+                    reset_btn=reset_btn,
+                    frame_l=frame_l:
+                    reset_btn_press(reset_btn, frame_l))
     
     global output_word_list_label
     output_word_list = "Possible words:\n\n" + ", ".join(sol_remain)
@@ -165,7 +185,7 @@ def init():
     output_word_list_label.insert("1.0", output_word_list)
     output_word_list_label.pack()
     
-    new_row(submit_btn, frame_l)
+    new_row((submit_btn, reset_btn), frame_l)
 
 def run():
     global root
