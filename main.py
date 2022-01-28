@@ -110,9 +110,21 @@ def wordl_logic(last_sol, last_input, last_color):
     sol_return = []
     for word in last_sol:
         match = True
+        green_list = []
+        yellow_list = []
+        for index, alpha in enumerate(last_input):
+            if last_color[index] == yellow:
+                yellow_list.append(alpha)
+            elif last_color[index] == green:
+                green_list.append(alpha)
+        
         for index, alpha in enumerate(last_input):
             if last_color[index] == white:
-                if alpha in word.upper():
+                if alpha in yellow_list or alpha in green_list:
+                    alpha_repeat_count = yellow_list.count(alpha) + green_list.count(alpha)
+                    if list(word.upper()).count(alpha) > alpha_repeat_count:
+                        match = False
+                elif alpha in word.upper():
                     match = False
             elif last_color[index] == yellow:
                 if alpha not in word.upper():
