@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import tkinter as tk
+import re
 
 def output_area():
     frame_l = tk.Frame(master = root)
@@ -142,9 +143,12 @@ def submit_btn_press(submit_btn, reset_btn, frame_l):
         
         
         #display result to text box
-        output_word_list_label.delete("1.0", tk.END)
+        output_word_list_Text.delete("1.0", tk.END)
         output_word_list = "Possible words:\n\n" + ", ".join(sol_remain)
-        output_word_list_label.insert("1.0", output_word_list)
+        output_word_list_Text.insert("1.0", output_word_list)
+        
+        output_frequency_analysis_label.config(text = __str_freq(analyze_remain(sol_remain)))
+        output_frequency_analysis_label.pack()
         
 def reset_btn_press(reset_btn, frame_l):
     global sol_remain
@@ -155,6 +159,25 @@ def reset_btn_press(reset_btn, frame_l):
     root = tk.Tk()
     
     init()
+    
+def analyze_remain(sol_remain_analyze):
+    remain_frequency_analysis = {}
+    remain_alphabets = list(set("".join(sol_remain_analyze)))
+    remain_alphabets.sort()
+    for alpha in remain_alphabets:
+        remain_frequency_analysis[alpha] = 0
+    for alpha in "".join(sol_remain_analyze):
+        remain_frequency_analysis[alpha] += 1
+    return dict(sorted(remain_frequency_analysis.items(), key = lambda item: item[1], reverse = True))
+    
+def __str_freq(freq):
+    s = ''
+    max_val = max(freq.values())
+    digit = len(str(max_val))
+    for alpha, count in freq.items():
+        s += alpha + ": " + str(count).rjust(digit) + ", "
+    s = s[:-2]
+    return s
 
 def init():
     global entry_var
@@ -180,11 +203,15 @@ def init():
                     frame_l=frame_l:
                     reset_btn_press(reset_btn, frame_l))
     
-    global output_word_list_label
+    global output_word_list_Text
     output_word_list = "Possible words:\n\n" + ", ".join(sol_remain)
-    output_word_list_label = tk.Text(master = frame_r, width = 5*box_size)#, state = "disabled")
-    output_word_list_label.insert("1.0", output_word_list)
-    output_word_list_label.pack()
+    output_word_list_Text = tk.Text(master = frame_r, width = 5*box_size)#, state = "disabled")
+    output_word_list_Text.insert("1.0", output_word_list)
+    output_word_list_Text.pack()
+    
+    global output_frequency_analysis_label
+    output_frequency_analysis_label = tk.Label(master = frame_r, wraplength = 5*box_size, text = __str_freq(analyze_remain(sol_remain)))
+    output_frequency_analysis_label.pack()
     
     new_row((submit_btn, reset_btn), frame_l)
 
