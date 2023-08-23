@@ -7,7 +7,7 @@ def output_area():
     frame_r = tk.Frame(master = root, borderwidth = 2, width = 5*box_size)
     frame_r.pack_propagate(0)
     frame_l.pack(fill=tk.Y, side=tk.LEFT)
-    frame_r.pack(fill=tk.Y, side=tk.LEFT)
+    frame_r.pack(fill=tk.Y, side=tk.LEFT, expand=True)
     
     return (frame_l, frame_r)
 
@@ -30,6 +30,8 @@ def to_uppercase(var, index):
             entry_box[-1][index+1].focus()
         except:
             pass
+        
+        entry_box[-1][index+1].icursor(1)
     
 def force_upper(entry_var):
     for ind, alpha in enumerate(entry_var[-1]):
@@ -57,6 +59,12 @@ def disable_last_row():
             entry_box[-1][i]["disabledforeground"] = "black"
     except:
         pass
+    
+def select_on_focus(event):
+    event.widget.config(highlightthickness=2, highlightbackground = "red", highlightcolor= "red")
+
+def select_off_focus(event):
+    event.widget.config(highlightthickness=2, highlightbackground = "black", highlightcolor= "black")
 
 def new_row(buttons, frame_l):
     disable_last_row()
@@ -78,7 +86,12 @@ def new_row(buttons, frame_l):
                          justify='center',
                          textvariable = entry_var[len(entry_var)-1][i],
                          background = white,
-                         foreground = "black")
+                         foreground = "black",
+                         highlightthickness=2,
+                         highlightbackground = "black",
+                         highlightcolor= "black")
+        entry.bind('<FocusIn>', select_on_focus)
+        entry.bind('<FocusOut>', select_off_focus)
         
         entry_box[-1].append(entry)
         
@@ -105,6 +118,15 @@ def new_row(buttons, frame_l):
     submit_btn.pack()
     reset_btn.pack_forget()
     reset_btn.pack()
+    
+    root.geometry("")
+    if root.winfo_height() < min_height:
+        root.geometry("614x{}".format(min_height))
+    
+    try:
+        entry_box[-1][0].focus()
+    except:
+        pass
     
 def wordl_logic(last_sol, last_input, last_color):
     sol_return = []
@@ -144,7 +166,8 @@ def submit_btn_press(submit_btn, reset_btn, frame_l):
     last_input = [alpha.get() for alpha in entry_var[-1]]
     if len(list(filter(None, last_input))) == 5:
         last_color = [color["background"] for color in entry_box[-1]]
-        if len(entry_box) < 6:
+        
+        if len(entry_box) < 11:
             new_row((submit_btn, reset_btn), frame_l)
         else:
             disable_last_row()
@@ -190,6 +213,33 @@ def __str_freq(freq):
         s += alpha + ": " + str(count).rjust(digit) + ", "
     s = s[:-2]
     return s
+    
+def get_current_focus():
+    current_focus = -1
+    current_focus_obj = root.focus_get()
+    for i, entry in enumerate(entry_box[-1]):
+        if entry == current_focus_obj:
+            current_focus = i
+    
+    return current_focus
+
+def move_cursor_after_key(new_focus):
+    new_focus_obj = entry_box[-1][new_focus]
+    
+    try:
+        new_focus_obj.focus()
+    except:
+        pass
+    
+    new_focus_obj.icursor(1)
+
+def left_key_pressed(e):
+    new_focus = max(0, get_current_focus() - 1)
+    move_cursor_after_key(new_focus)
+    
+def right_key_pressed(e):
+    new_focus = min(4, get_current_focus() + 1)
+    move_cursor_after_key(new_focus)
 
 def init():
     global entry_var
@@ -200,6 +250,16 @@ def init():
     cycle_btn = []
     
     main_frame = (frame_l, frame_r) = output_area()
+    
+    global output_word_list_Text
+    output_word_list = "Possible words:\n\n" + ", ".join(sol_remain)
+    output_word_list_Text = tk.Text(master = frame_r, width = 5*box_size)#, state = "disabled")
+    output_word_list_Text.insert("1.0", output_word_list)
+    output_word_list_Text.pack()
+    
+    global output_frequency_analysis_label
+    output_frequency_analysis_label = tk.Label(master = frame_r, wraplength = 5*box_size, text = __str_freq(analyze_remain(sol_remain)))
+    output_frequency_analysis_label.pack(fill="both", expand=True)
     
     submit_btn = tk.Button(master = frame_l, text="send", highlightbackground='#3E4149')
     submit_btn.bind("<Button-1>",
@@ -215,17 +275,15 @@ def init():
                     frame_l=frame_l:
                     reset_btn_press(reset_btn, frame_l))
     
-    global output_word_list_Text
-    output_word_list = "Possible words:\n\n" + ", ".join(sol_remain)
-    output_word_list_Text = tk.Text(master = frame_r, width = 5*box_size)#, state = "disabled")
-    output_word_list_Text.insert("1.0", output_word_list)
-    output_word_list_Text.pack()
-    
-    global output_frequency_analysis_label
-    output_frequency_analysis_label = tk.Label(master = frame_r, wraplength = 5*box_size, text = __str_freq(analyze_remain(sol_remain)))
-    output_frequency_analysis_label.pack()
-    
     new_row((submit_btn, reset_btn), frame_l)
+    
+    root.bind("<KeyRelease-Return>", 
+              lambda event,
+              submit_btn=submit_btn,
+              frame_l=frame_l:
+              submit_btn_press(submit_btn, reset_btn, frame_l))
+    root.bind("<KeyRelease-Left>", left_key_pressed)
+    root.bind("<KeyRelease-Right>", right_key_pressed)
 
 def run():
     global root
@@ -250,5 +308,8 @@ if __name__ == "__main__":
     white = "white"
     yellow = "#b59f3b"
     green = "#538d4e"
+    
+    global min_height
+    min_height = 410
     
     run()
