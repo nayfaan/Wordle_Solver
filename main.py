@@ -205,13 +205,23 @@ def wordl_logic(last_sol, last_input, last_color):
 
     return sol_return
 
+
 def avoid_green(word):
     noMatch = True
-    for index,alpha in enumerate(current_green):
+    for index, alpha in enumerate(current_green):
         if word[index] == alpha:
             noMatch = False
     return noMatch
 
+
+def sum_word_score(word, oustanding_dict):
+    score = 0
+    for alpha in set(word):
+        try:
+            score += oustanding_dict[alpha]
+        except:
+            pass
+    return score
 
 
 def update_recommended(analyzed):
@@ -225,6 +235,27 @@ def update_recommended(analyzed):
 
     if len(sol_remain) > 0 and len(sol_remain) <= 2:
         recommended = sol_remain[0]
+
+    if len(sol_remain) == 3:
+        oustanding_dict = {
+            oustanding_alpha[i]: 0 for i in range(0, len(oustanding_alpha))
+        }
+        for word in sol_remain:
+            word_set = set(word)
+            for alpha in word_set:
+                try:
+                    oustanding_dict[alpha] += 1
+                except:
+                    pass
+        score_dict = {
+            sol_remain[i]: sum_word_score(sol_remain[i], oustanding_dict)
+            for i in range(0, len(sol_remain))
+        }
+        recommended = [
+            key
+            for key, value in score_dict.items()
+            if value == max(score_dict.values())
+        ][0]
 
     for i in [5, 4, 3, 2]:
         if not recommended:
@@ -272,11 +303,10 @@ def submit_btn_press(submit_btn, reset_btn, frame_l):
             recommended_word.set("TRY: " + recommend)
             # set next row to recommend
             for index, value in enumerate(entry_box[-1]):
-                value.insert(0,recommend[index])
+                value.insert(0, recommend[index])
             move_cursor_after_key(0)
         else:
             recommended_word.set("TRY: N/A")
-
 
         # display result to text box
         output_word_list_Text.delete("1.0", tk.END)
@@ -285,8 +315,6 @@ def submit_btn_press(submit_btn, reset_btn, frame_l):
 
         output_frequency_analysis_label.config(text=__str_freq(analyzed))
         output_frequency_analysis_label.pack()
-    
-    print(current_green)
 
 
 def reset_btn_press(reset_btn, frame_l):
@@ -413,7 +441,7 @@ def init():
 
     new_row((submit_btn, reset_btn), frame_l)
     for index, value in enumerate(entry_box[-1]):
-                value.insert(0,"SAINE"[index])
+        value.insert(0, "SAINE"[index])
     move_cursor_after_key(0)
 
     root.bind(
