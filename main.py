@@ -12,6 +12,8 @@ FONT_CANDIDATES = ("Imperial", "Segoe UI", "Helvetica", "Arial")
 BASE_BOX_SIZE = 60
 BASE_MIN_HEIGHT = 410
 
+FIRST_GUESS = "SAINE"
+
 
 def enable_dpi_awareness():
     if sys.platform != "win32":
@@ -86,13 +88,27 @@ def force_upper(entry_var):
         )
 
 
-def cycle_color(i):
+def get_box_color(entry):
+    if str(entry["state"]) == "disabled":
+        return str(entry["disabledbackground"])
+    return str(entry["background"])
+
+
+def set_box_color(entry, color):
+    if str(entry["state"]) == "disabled":
+        entry["disabledbackground"] = color
+    else:
+        entry["background"] = color
+
+
+def cycle_color(row, i):
     color_list = [white, yellow, green]
 
-    box_color = entry_box[-1][i]["background"]
-    entry_box[-1][i]["background"] = color_list[
-        (color_list.index(box_color) + 1) % len(color_list)
-    ]
+    box_color = get_box_color(entry_box[row][i])
+    new_color = color_list[(color_list.index(box_color) + 1) % len(color_list)]
+
+    set_box_color(entry_box[row][i], new_color)
+    row_colors[row][i] = new_color
 
 
 def disable_last_row():
@@ -124,7 +140,7 @@ def select_off_focus(event):
     )
 
 
-def add_cycle_buttons(row_frame, row_cycle_btn):
+def add_cycle_buttons(row_frame, row_cycle_btn, row):
     for i in range(5):
         # cycle_button
         cycle_frame = tk.Frame(
@@ -138,7 +154,7 @@ def add_cycle_buttons(row_frame, row_cycle_btn):
 
         cycle = tk.Button(master=cycle_frame, text=">", width=1, height=1)
         row_cycle_btn.append(cycle)
-        cycle.bind("<Button-1>", lambda event, i=i: cycle_color(i))
+        cycle.bind("<Button-1>", lambda event, row=row, i=i: cycle_color(row, i))
 
         cycle.pack(fill="both", expand=True)
         cycle_frame.grid(row=1, column=i)
@@ -157,6 +173,7 @@ def new_row(buttons, frame_l):
     entry_var.append([])
     entry_box.append([])
     cycle_btn.append([])
+    row_colors.append([white] * 5)
 
     frame_1 = tk.Frame(
         master=frame_l, borderwidth=1, padx=box_size / 10, pady=box_size / 10
@@ -195,16 +212,18 @@ def new_row(buttons, frame_l):
 
         entry_frame.grid(row=0, column=i)
 
-    add_cycle_buttons(frame_1, cycle_btn[-1])
+    add_cycle_buttons(frame_1, cycle_btn[-1], len(entry_box) - 1)
     frame_1.pack()
 
     force_upper(entry_var)
 
-    (submit_btn, undo_btn, reset_btn) = buttons
+    (submit_btn, undo_btn, edit_btn, reset_btn) = buttons
     submit_btn.pack_forget()
     submit_btn.pack()
     undo_btn.pack_forget()
     undo_btn.pack()
+    edit_btn.pack_forget()
+    edit_btn.pack()
     reset_btn.pack_forget()
     reset_btn.pack()
 
@@ -345,7 +364,7 @@ def push_history(last_color):
             "sol_remain": sol_remain,
             "active_letters": set(active_letters),
             "current_green": list(current_green),
-            "colors": last_color,
+            "colors": list(last_color),
             "recommended": recommended_word.get(),
             "row_added": len(entry_box) < 11,
         }
@@ -361,8 +380,8 @@ def render_output(analyzed):
     output_frequency_analysis_label.pack()
 
 
-def undo_btn_press(submit_btn, undo_btn):
-    if not history:
+def undo_btn_press(submit_btn, undo_btn, edit_btn):
+    if not history or edit_mode:
         return
 
     previous = history.pop()
@@ -372,6 +391,7 @@ def undo_btn_press(submit_btn, undo_btn):
         entry_var.pop()
         entry_box.pop()
         cycle_btn.pop()
+        row_colors.pop()
 
     global sol_remain
     sol_remain = previous["sol_remain"]
@@ -380,12 +400,13 @@ def undo_btn_press(submit_btn, undo_btn):
     global current_green
     current_green = previous["current_green"]
 
+    row_colors[-1] = list(previous["colors"])
     for i in range(5):
         entry_box[-1][i]["state"] = "normal"
         entry_box[-1][i]["background"] = previous["colors"][i]
 
     cycle_btn[-1] = []
-    add_cycle_buttons(row_frames[-1], cycle_btn[-1])
+    add_cycle_buttons(row_frames[-1], cycle_btn[-1], len(entry_box) - 1)
 
     submit_btn["state"] = "normal"
     recommended_word.set(previous["recommended"])
@@ -393,27 +414,123 @@ def undo_btn_press(submit_btn, undo_btn):
 
     if not history:
         undo_btn["state"] = "disabled"
+        edit_btn["state"] = "disabled"
 
     resize_window()
     move_cursor_after_key(0)
 
 
-def submit_btn_press(submit_btn, undo_btn, reset_btn, frame_l):
-    if str(submit_btn["state"]) == "disabled":
+def locked_rows():
+    return len(history)
+
+
+def recalculate():
+    global sol_remain
+    global active_letters
+    global current_green
+
+    rows = locked_rows()
+    del history[:]
+
+    sol_remain = sol
+    active_letters = set()
+    current_green = [None, None, None, None, None]
+    recommend = FIRST_GUESS
+    shown = "TRY: " + FIRST_GUESS
+
+    for row in range(rows):
+        history.append(
+            {
+                "sol_remain": sol_remain,
+                "active_letters": set(active_letters),
+                "current_green": list(current_green),
+                "colors": list(row_colors[row]),
+                "recommended": shown,
+                "row_added": row + 1 < 11,
+            }
+        )
+
+        row_input = [alpha.get() for alpha in entry_var[row]]
+        sol_remain = wordl_logic(sol_remain, row_input, row_colors[row])
+        recommend = update_recommended(analyze_remain(sol_remain))
+        shown = "TRY: " + recommend if recommend else "TRY: N/A"
+
+    recommended_word.set(shown)
+
+    if len(entry_box) > rows:
+        for i in range(5):
+            entry_box[-1][i].delete(0, tk.END)
+        if recommend:
+            for i in range(5):
+                entry_box[-1][i].insert(0, recommend[i])
+        move_cursor_after_key(0)
+
+    render_output(analyze_remain(sol_remain))
+
+
+def start_edit(edit_btn, submit_btn, undo_btn):
+    global edit_mode
+    edit_mode = True
+
+    for row in range(locked_rows()):
+        for i in range(5):
+            entry_box[row][i]["disabledbackground"] = row_colors[row][i]
+        cycle_btn[row] = []
+        add_cycle_buttons(row_frames[row], cycle_btn[row], row)
+
+    edit_btn["text"] = "apply"
+    submit_btn["state"] = "disabled"
+    undo_btn["state"] = "disabled"
+    resize_window()
+
+
+def finish_edit(edit_btn, submit_btn, undo_btn):
+    global edit_mode
+    edit_mode = False
+
+    for row in range(locked_rows()):
+        for i in range(5):
+            cycle_btn[row][i].master.destroy()
+            if row_colors[row][i] != white:
+                entry_box[row][i]["disabledbackground"] = row_colors[row][i]
+            else:
+                entry_box[row][i]["disabledbackground"] = "grey"
+        cycle_btn[row] = []
+
+    recalculate()
+
+    edit_btn["text"] = "edit"
+    if len(entry_box) > locked_rows():
+        submit_btn["state"] = "normal"
+    undo_btn["state"] = "normal"
+    resize_window()
+
+
+def edit_btn_press(edit_btn, submit_btn, undo_btn):
+    if edit_mode:
+        finish_edit(edit_btn, submit_btn, undo_btn)
+    elif history:
+        start_edit(edit_btn, submit_btn, undo_btn)
+
+
+def submit_btn_press(submit_btn, undo_btn, edit_btn, reset_btn, frame_l):
+    if str(submit_btn["state"]) == "disabled" or edit_mode:
         return
 
     last_input = [alpha.get() for alpha in entry_var[-1]]
     if len(list(filter(None, last_input))) == 5:
         last_color = [color["background"] for color in entry_box[-1]]
+        row_colors[-1] = list(last_color)
         push_history(last_color)
 
         if len(entry_box) < 11:
-            new_row((submit_btn, undo_btn, reset_btn), frame_l)
+            new_row((submit_btn, undo_btn, edit_btn, reset_btn), frame_l)
         else:
             disable_last_row()
             submit_btn["state"] = "disabled"
 
         undo_btn["state"] = "normal"
+        edit_btn["state"] = "normal"
 
         global sol_remain
         sol_remain = wordl_logic(sol_remain, last_input, last_color)
@@ -523,6 +640,10 @@ def init():
     row_frames = []
     global history
     history = []
+    global row_colors
+    row_colors = []
+    global edit_mode
+    edit_mode = False
 
     main_frame = (frame_l, frame_r) = output_area()
 
@@ -530,7 +651,7 @@ def init():
     global recommended_word
     recommended_word = tk.StringVar()
     recommended_word_Text = tk.Label(master=frame_r, textvariable=recommended_word)
-    recommended_word.set("TRY: " + "SAINE")
+    recommended_word.set("TRY: " + FIRST_GUESS)
     recommended_word_Text.pack()
 
     global output_word_list_Text
@@ -553,7 +674,7 @@ def init():
     submit_btn.bind(
         "<Button-1>",
         lambda event, submit_btn=submit_btn, frame_l=frame_l: submit_btn_press(
-            submit_btn, undo_btn, reset_btn, frame_l
+            submit_btn, undo_btn, edit_btn, reset_btn, frame_l
         ),
     )
 
@@ -566,8 +687,20 @@ def init():
     undo_btn.bind(
         "<Button-1>",
         lambda event, undo_btn=undo_btn, submit_btn=submit_btn: undo_btn_press(
-            submit_btn, undo_btn
+            submit_btn, undo_btn, edit_btn
         ),
+    )
+
+    edit_btn = tk.Button(
+        master=frame_l,
+        text="edit",
+        state="disabled",
+        highlightbackground="#3E4149",
+    )
+    edit_btn.bind(
+        "<Button-1>",
+        lambda event, edit_btn=edit_btn, submit_btn=submit_btn,
+        undo_btn=undo_btn: edit_btn_press(edit_btn, submit_btn, undo_btn),
     )
 
     reset_btn = tk.Button(master=frame_l, text="reset", highlightbackground="#3E4149")
@@ -578,21 +711,21 @@ def init():
         ),
     )
 
-    new_row((submit_btn, undo_btn, reset_btn), frame_l)
+    new_row((submit_btn, undo_btn, edit_btn, reset_btn), frame_l)
     for index, value in enumerate(entry_box[-1]):
-        value.insert(0, "SAINE"[index])
+        value.insert(0, FIRST_GUESS[index])
     move_cursor_after_key(0)
 
     root.bind(
         "<KeyRelease-Return>",
         lambda event, submit_btn=submit_btn, frame_l=frame_l: submit_btn_press(
-            submit_btn, undo_btn, reset_btn, frame_l
+            submit_btn, undo_btn, edit_btn, reset_btn, frame_l
         ),
     )
     root.bind(
         "<KeyRelease-KP_Enter>",
         lambda event, submit_btn=submit_btn, frame_l=frame_l: submit_btn_press(
-            submit_btn, undo_btn, reset_btn, frame_l
+            submit_btn, undo_btn, edit_btn, reset_btn, frame_l
         ),
     )
     root.bind("<KeyRelease-Left>", left_key_pressed)
