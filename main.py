@@ -124,6 +124,33 @@ def select_off_focus(event):
     )
 
 
+def add_cycle_buttons(row_frame, row_cycle_btn):
+    for i in range(5):
+        # cycle_button
+        cycle_frame = tk.Frame(
+            master=row_frame,
+            relief=tk.RAISED,
+            borderwidth=1,
+            width=box_size,
+            height=box_size / 2,
+        )
+        cycle_frame.pack_propagate(0)
+
+        cycle = tk.Button(master=cycle_frame, text=">", width=1, height=1)
+        row_cycle_btn.append(cycle)
+        cycle.bind("<Button-1>", lambda event, i=i: cycle_color(i))
+
+        cycle.pack(fill="both", expand=True)
+        cycle_frame.grid(row=1, column=i)
+
+
+def resize_window():
+    root.geometry("")
+    root.update_idletasks()
+    if root.winfo_height() < min_height:
+        root.geometry("{}x{}".format(root.winfo_width(), min_height))
+
+
 def new_row(buttons, frame_l):
     disable_last_row()
 
@@ -134,6 +161,7 @@ def new_row(buttons, frame_l):
     frame_1 = tk.Frame(
         master=frame_l, borderwidth=1, padx=box_size / 10, pady=box_size / 10
     )
+    row_frames.append(frame_1)
     for i in range(5):
         # entry box
         entry_frame = tk.Frame(
@@ -167,36 +195,20 @@ def new_row(buttons, frame_l):
 
         entry_frame.grid(row=0, column=i)
 
-        # cycle_button
-        cycle_frame = tk.Frame(
-            master=frame_1,
-            relief=tk.RAISED,
-            borderwidth=1,
-            width=box_size,
-            height=box_size / 2,
-        )
-        cycle_frame.pack_propagate(0)
-
-        cycle = tk.Button(master=cycle_frame, text=">", width=1, height=1)
-        cycle_btn[-1].append(cycle)
-        cycle.bind("<Button-1>", lambda event, i=i: cycle_color(i))
-
-        cycle.pack(fill="both", expand=True)
-        cycle_frame.grid(row=1, column=i)
+    add_cycle_buttons(frame_1, cycle_btn[-1])
     frame_1.pack()
 
     force_upper(entry_var)
 
-    (submit_btn, reset_btn) = buttons
+    (submit_btn, undo_btn, reset_btn) = buttons
     submit_btn.pack_forget()
     submit_btn.pack()
+    undo_btn.pack_forget()
+    undo_btn.pack()
     reset_btn.pack_forget()
     reset_btn.pack()
 
-    root.geometry("")
-    root.update_idletasks()
-    if root.winfo_height() < min_height:
-        root.geometry("{}x{}".format(root.winfo_width(), min_height))
+    resize_window()
 
     try:
         entry_box[-1][0].focus()
@@ -327,16 +339,81 @@ def update_recommended(analyzed):
     return recommended
 
 
-def submit_btn_press(submit_btn, reset_btn, frame_l):
+def push_history(last_color):
+    history.append(
+        {
+            "sol_remain": sol_remain,
+            "active_letters": set(active_letters),
+            "current_green": list(current_green),
+            "colors": last_color,
+            "recommended": recommended_word.get(),
+            "row_added": len(entry_box) < 11,
+        }
+    )
+
+
+def render_output(analyzed):
+    output_word_list_Text.delete("1.0", tk.END)
+    output_word_list = "Possible words:\n\n" + ", ".join(sol_remain)
+    output_word_list_Text.insert("1.0", output_word_list)
+
+    output_frequency_analysis_label.config(text=__str_freq(analyzed))
+    output_frequency_analysis_label.pack()
+
+
+def undo_btn_press(submit_btn, undo_btn):
+    if not history:
+        return
+
+    previous = history.pop()
+
+    if previous["row_added"]:
+        row_frames.pop().destroy()
+        entry_var.pop()
+        entry_box.pop()
+        cycle_btn.pop()
+
+    global sol_remain
+    sol_remain = previous["sol_remain"]
+    global active_letters
+    active_letters = previous["active_letters"]
+    global current_green
+    current_green = previous["current_green"]
+
+    for i in range(5):
+        entry_box[-1][i]["state"] = "normal"
+        entry_box[-1][i]["background"] = previous["colors"][i]
+
+    cycle_btn[-1] = []
+    add_cycle_buttons(row_frames[-1], cycle_btn[-1])
+
+    submit_btn["state"] = "normal"
+    recommended_word.set(previous["recommended"])
+    render_output(analyze_remain(sol_remain))
+
+    if not history:
+        undo_btn["state"] = "disabled"
+
+    resize_window()
+    move_cursor_after_key(0)
+
+
+def submit_btn_press(submit_btn, undo_btn, reset_btn, frame_l):
+    if str(submit_btn["state"]) == "disabled":
+        return
+
     last_input = [alpha.get() for alpha in entry_var[-1]]
     if len(list(filter(None, last_input))) == 5:
         last_color = [color["background"] for color in entry_box[-1]]
+        push_history(last_color)
 
         if len(entry_box) < 11:
-            new_row((submit_btn, reset_btn), frame_l)
+            new_row((submit_btn, undo_btn, reset_btn), frame_l)
         else:
             disable_last_row()
-            submit_btn.destroy()
+            submit_btn["state"] = "disabled"
+
+        undo_btn["state"] = "normal"
 
         global sol_remain
         sol_remain = wordl_logic(sol_remain, last_input, last_color)
@@ -352,23 +429,21 @@ def submit_btn_press(submit_btn, reset_btn, frame_l):
             recommended_word.set("TRY: N/A")
 
         # display result to text box
-        output_word_list_Text.delete("1.0", tk.END)
-        output_word_list = "Possible words:\n\n" + ", ".join(sol_remain)
-        output_word_list_Text.insert("1.0", output_word_list)
-
-        output_frequency_analysis_label.config(text=__str_freq(analyzed))
-        output_frequency_analysis_label.pack()
+        render_output(analyzed)
 
 
-def reset_btn_press(reset_btn, frame_l):
+def rebuild_board():
     global sol_remain
     sol_remain = sol
 
-    global root
-    root.destroy()
-    root = tk.Tk()
+    for child in root.winfo_children():
+        child.destroy()
 
     init()
+
+
+def reset_btn_press(reset_btn, frame_l):
+    root.after_idle(rebuild_board)
 
 
 def analyze_remain(sol_remain_analyze):
@@ -388,6 +463,8 @@ def analyze_remain(sol_remain_analyze):
 
 def __str_freq(freq):
     s = ""
+    if not freq:
+        return s
     max_val = max(freq.values())
     digit = len(str(max_val))
     for alpha, count in freq.items():
@@ -442,6 +519,10 @@ def init():
     entry_box = []
     global cycle_btn
     cycle_btn = []
+    global row_frames
+    row_frames = []
+    global history
+    history = []
 
     main_frame = (frame_l, frame_r) = output_area()
 
@@ -472,7 +553,20 @@ def init():
     submit_btn.bind(
         "<Button-1>",
         lambda event, submit_btn=submit_btn, frame_l=frame_l: submit_btn_press(
-            submit_btn, reset_btn, frame_l
+            submit_btn, undo_btn, reset_btn, frame_l
+        ),
+    )
+
+    undo_btn = tk.Button(
+        master=frame_l,
+        text="undo",
+        state="disabled",
+        highlightbackground="#3E4149",
+    )
+    undo_btn.bind(
+        "<Button-1>",
+        lambda event, undo_btn=undo_btn, submit_btn=submit_btn: undo_btn_press(
+            submit_btn, undo_btn
         ),
     )
 
@@ -484,7 +578,7 @@ def init():
         ),
     )
 
-    new_row((submit_btn, reset_btn), frame_l)
+    new_row((submit_btn, undo_btn, reset_btn), frame_l)
     for index, value in enumerate(entry_box[-1]):
         value.insert(0, "SAINE"[index])
     move_cursor_after_key(0)
@@ -492,13 +586,13 @@ def init():
     root.bind(
         "<KeyRelease-Return>",
         lambda event, submit_btn=submit_btn, frame_l=frame_l: submit_btn_press(
-            submit_btn, reset_btn, frame_l
+            submit_btn, undo_btn, reset_btn, frame_l
         ),
     )
     root.bind(
         "<KeyRelease-KP_Enter>",
         lambda event, submit_btn=submit_btn, frame_l=frame_l: submit_btn_press(
-            submit_btn, reset_btn, frame_l
+            submit_btn, undo_btn, reset_btn, frame_l
         ),
     )
     root.bind("<KeyRelease-Left>", left_key_pressed)
