@@ -1,6 +1,49 @@
 #!/usr/bin/env python
 import tkinter as tk
+import tkinter.font as tkfont
 import itertools
+import sys
+from pathlib import Path
+
+INPUT_DIR = Path(__file__).resolve().parent / "input"
+
+FONT_CANDIDATES = ("Imperial", "Segoe UI", "Helvetica", "Arial")
+
+BASE_BOX_SIZE = 60
+BASE_MIN_HEIGHT = 410
+
+
+def enable_dpi_awareness():
+    if sys.platform != "win32":
+        return
+
+    import ctypes
+
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    except (AttributeError, OSError):
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()
+        except (AttributeError, OSError):
+            pass
+
+
+def ui_scale(widget):
+    if sys.platform != "win32":
+        return 1.0
+
+    try:
+        return widget.winfo_fpixels("1i") / 96.0
+    except tk.TclError:
+        return 1.0
+
+
+def pick_font_family():
+    available = set(tkfont.families())
+    for family in FONT_CANDIDATES:
+        if family in available:
+            return family
+    return tkfont.nametofont("TkDefaultFont").actual("family")
 
 
 def output_area():
@@ -30,10 +73,9 @@ def to_uppercase(var, index):
     else:
         try:
             entry_box[-1][index + 1].focus()
+            entry_box[-1][index + 1].icursor(1)
         except:
             pass
-
-        entry_box[-1][index + 1].icursor(1)
 
 
 def force_upper(entry_var):
@@ -107,7 +149,7 @@ def new_row(buttons, frame_l):
         entry = tk.Entry(
             master=entry_frame,
             width=1,
-            font=("Imperial", int(0.7 * box_size)),
+            font=(font_family, -int(0.7 * box_size)),
             justify="center",
             textvariable=entry_var[len(entry_var) - 1][i],
             background=white,
@@ -152,8 +194,9 @@ def new_row(buttons, frame_l):
     reset_btn.pack()
 
     root.geometry("")
+    root.update_idletasks()
     if root.winfo_height() < min_height:
-        root.geometry("614x{}".format(min_height))
+        root.geometry("{}x{}".format(root.winfo_width(), min_height))
 
     try:
         entry_box[-1][0].focus()
@@ -385,6 +428,8 @@ def right_key_pressed(e):
 
 
 def init():
+    root.title("Wordle Solver")
+
     global active_letters
     active_letters = set()
 
@@ -450,14 +495,32 @@ def init():
             submit_btn, reset_btn, frame_l
         ),
     )
+    root.bind(
+        "<KeyRelease-KP_Enter>",
+        lambda event, submit_btn=submit_btn, frame_l=frame_l: submit_btn_press(
+            submit_btn, reset_btn, frame_l
+        ),
+    )
     root.bind("<KeyRelease-Left>", left_key_pressed)
     root.bind("<KeyRelease-Right>", right_key_pressed)
     root.bind("<KeyRelease-BackSpace>", left_key_pressed)
 
 
 def run():
+    enable_dpi_awareness()
+
     global root
     root = tk.Tk()
+
+    scale = ui_scale(root)
+
+    global box_size
+    box_size = int(BASE_BOX_SIZE * scale)
+    global min_height
+    min_height = int(BASE_MIN_HEIGHT * scale)
+
+    global font_family
+    font_family = pick_font_family()
 
     init()
 
@@ -465,26 +528,21 @@ def run():
 
 
 if __name__ == "__main__":
-    with open("./input/possible_solutions.txt", "rt") as f:
+    with open(INPUT_DIR / "possible_solutions.txt", "rt") as f:
         sol = f.read().splitlines()
 
     global all_valid
-    with open("./input/all_allowed_sans_dupe.txt", "rt") as f:
+    with open(INPUT_DIR / "all_allowed_sans_dupe.txt", "rt") as f:
         all_valid = f.read().splitlines()
 
     global sol_remain
     sol_remain = sol
 
-    global box_size
-    box_size = 60
     global white
     global yellow
     global green
     white = "white"
     yellow = "#b59f3b"
     green = "#538d4e"
-
-    global min_height
-    min_height = 410
 
     run()
